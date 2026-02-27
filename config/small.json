@@ -1,0 +1,17 @@
+{
+  "spread_bps": 300,
+  "order_size": 10,
+  "max_position": 200,
+  "max_total_position": 600,
+  "max_loss": 50,
+  "dry_run": true,
+  "inventory_skew_factor": 2.0,
+  "accumulation_enabled": true,
+  "accumulation_spread_bps": 50,
+  "accumulation_cross_spread": false,
+  "target_initial_position": 10.0,
+  "accumulation_size_multiplier": 1.5,
+  "accumulation_max_price_cents": 95,
+  "accumulation_timeout_seconds": 0,
+  "stale_data_timeout_seconds": 600
+}

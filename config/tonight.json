@@ -1,0 +1,50 @@
+[
+  {
+    "token_id": "60876783433371511700711948210449909733777178940058215759873715506260956162329",
+    "question": "Thunder vs. Pistons",
+    "outcome": "Thunder",
+    "poly_price": 0.285,
+    "fair_value": 0.27512675727782315,
+    "divergence_bps": 98.73242722176823,
+    "volume_usd": 451715.316948,
+    "spread_estimate": 0.43000000000000005,
+    "edge_bps": 2150.0000000000005,
+    "tier": 2
+  },
+  {
+    "token_id": "28935778448990015655176315222227332932706161344311463353800953649467605216714",
+    "question": "Thunder vs. Pistons",
+    "outcome": "Pistons",
+    "poly_price": 0.715,
+    "fair_value": 0.7248732427221769,
+    "divergence_bps": 98.73242722176934,
+    "volume_usd": 451715.316948,
+    "spread_estimate": 0.42999999999999994,
+    "edge_bps": 2149.9999999999995,
+    "tier": 2
+  },
+  {
+    "token_id": "8994673147195894692764520060295243879759240464987352607004674840537432920255",
+    "question": "Celtics vs. Nuggets",
+    "outcome": "Celtics",
+    "poly_price": 0.415,
+    "fair_value": 0.4011558206018874,
+    "divergence_bps": 138.44179398112556,
+    "volume_usd": 571465.888771,
+    "spread_estimate": 0.17000000000000004,
+    "edge_bps": 850.0000000000002,
+    "tier": 2
+  },
+  {
+    "token_id": "67847944177007694906778218481223517410768545637481342982666561433482401769637",
+    "question": "Celtics vs. Nuggets",
+    "outcome": "Nuggets",
+    "poly_price": 0.585,
+    "fair_value": 0.5988441793981125,
+    "divergence_bps": 138.44179398112556,
+    "volume_usd": 571465.888771,
+    "spread_estimate": 0.16999999999999993,
+    "edge_bps": 849.9999999999997,
+    "tier": 2
+  }
+]

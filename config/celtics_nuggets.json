@@ -1,0 +1,18 @@
+[
+  {
+    "token_id": "8994673147195894692764520060295243879759240464987352607004674840537432920255",
+    "condition_id": "0x78541e7dbc150ea9890d66616fd120466ca85bc0ffe07ed58cf355dab05f8b58",
+    "slug": "nba-bos-den-2026-02-25",
+    "question": "Celtics vs. Nuggets",
+    "outcome": "Celtics",
+    "current_price": 0.425
+  },
+  {
+    "token_id": "67847944177007694906778218481223517410768545637481342982666561433482401769637",
+    "condition_id": "0x78541e7dbc150ea9890d66616fd120466ca85bc0ffe07ed58cf355dab05f8b58",
+    "slug": "nba-bos-den-2026-02-25",
+    "question": "Celtics vs. Nuggets",
+    "outcome": "Nuggets",
+    "current_price": 0.575
+  }
+]
