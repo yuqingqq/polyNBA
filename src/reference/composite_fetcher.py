@@ -15,6 +15,7 @@ from typing import Optional
 
 from .betfair_client import BetfairClient
 from .draftkings_client import DraftKingsClient
+from .fanduel_client import FanDuelClient
 from .kalshi_client import KalshiClient
 from .market_mapper import MarketMapper, normalize_team_name
 from .models import MappedMarket, PolymarketContract, ReferencePrice
@@ -48,19 +49,20 @@ class CompositeReferenceFetcher:
     """Fetches reference prices from multiple sources with per-game fallback.
 
     Priority order:
-      0. DraftKings direct API — sharpest US book, 1-5s latency
-      1. Betfair Exchange — vig-free exchange prices (requires VPN)
-      2. Kalshi — US-legal prediction market, vig-free mid-prices
-      3. The Odds API — aggregated bookmaker odds (requires vig removal)
+      0. FanDuel direct API — liquid US book, accessible globally
+      1. DraftKings direct API — sharpest US book (requires US residential IP)
+      2. Betfair Exchange — vig-free exchange prices (requires VPN)
+      3. Kalshi — US-legal prediction market, vig-free mid-prices
+      4. The Odds API — aggregated bookmaker odds (requires vig removal)
 
     Each game is served by the highest-priority source that covers it.
-    A game covered by DraftKings will not use Betfair, Kalshi, or Odds API data.
 
     Usage:
         fetcher = CompositeReferenceFetcher(
             poly_contracts=contracts,
             mapper=mapper,
             adapter=adapter,
+            fanduel_client=fd,
             draftkings_client=dk,
             kalshi_client=kalshi,
             betfair_client=betfair,
@@ -77,6 +79,7 @@ class CompositeReferenceFetcher:
         poly_contracts: list[PolymarketContract],
         mapper: MarketMapper,
         adapter: PriceAdapter,
+        fanduel_client: Optional[FanDuelClient] = None,
         draftkings_client: Optional[DraftKingsClient] = None,
         kalshi_client: Optional[KalshiClient] = None,
         betfair_client: Optional[BetfairClient] = None,
@@ -85,6 +88,7 @@ class CompositeReferenceFetcher:
         self.poly_contracts = poly_contracts
         self.mapper = mapper
         self.adapter = adapter
+        self.fanduel_client = fanduel_client
         self.draftkings_client = draftkings_client
         self.kalshi_client = kalshi_client
         self.betfair_client = betfair_client
@@ -114,26 +118,32 @@ class CompositeReferenceFetcher:
         covered_games: set[str] = set()
         all_mapped: list[MappedMarket] = []
 
-        # Tier 0: DraftKings direct API (sharpest, 1-5s latency)
+        # Tier 0: FanDuel direct API (liquid, accessible globally)
+        fd_mapped = self._fetch_fanduel(covered_games)
+        all_mapped.extend(fd_mapped)
+
+        # Tier 1: DraftKings direct API (sharpest, requires US residential IP)
         dk_mapped = self._fetch_draftkings(covered_games)
         all_mapped.extend(dk_mapped)
 
-        # Tier 1: Betfair (only uncovered games)
+        # Tier 2: Betfair (only uncovered games)
         betfair_mapped = self._fetch_betfair(covered_games)
         all_mapped.extend(betfair_mapped)
 
-        # Tier 2: Kalshi (only uncovered games)
+        # Tier 3: Kalshi (only uncovered games)
         kalshi_mapped = self._fetch_kalshi(covered_games)
         all_mapped.extend(kalshi_mapped)
 
-        # Tier 3: Odds API (only still-uncovered games)
+        # Tier 4: Odds API (only still-uncovered games)
         odds_mapped = self._fetch_odds_api(covered_games)
         all_mapped.extend(odds_mapped)
 
         logger.info(
             "Composite fetch: %d mapped markets "
-            "(draftkings=%d, betfair=%d, kalshi=%d, odds_api=%d, covered_games=%d)",
+            "(fanduel=%d, draftkings=%d, betfair=%d, kalshi=%d, odds_api=%d, "
+            "covered_games=%d)",
             len(all_mapped),
+            len(fd_mapped),
             len(dk_mapped),
             len(betfair_mapped),
             len(kalshi_mapped),
@@ -141,6 +151,47 @@ class CompositeReferenceFetcher:
             len(covered_games),
         )
         return all_mapped
+
+    def _fetch_fanduel(self, covered_games: set[str]) -> list[MappedMarket]:
+        """Fetch and map FanDuel NBA markets for uncovered games only.
+
+        Args:
+            covered_games: Set of game keys already covered (mutated in-place).
+
+        Returns:
+            List of MappedMarket from FanDuel (excluding already-covered games).
+        """
+        if self.fanduel_client is None:
+            return []
+
+        try:
+            events = self.fanduel_client.get_nba_game_events()
+        except Exception:
+            logger.warning("FanDuel fetch failed", exc_info=True)
+            return []
+
+        if not events:
+            return []
+
+        uncovered_events = self._filter_uncovered(events, covered_games)
+        if not uncovered_events:
+            logger.debug("FanDuel: all games already covered")
+            return []
+
+        mapped = self.mapper.map_all_games(
+            uncovered_events, self.poly_contracts, skip_in_progress=False,
+        )
+
+        for event in uncovered_events:
+            key = _game_key(event.home_team, event.away_team)
+            if key:
+                covered_games.add(key)
+
+        logger.info(
+            "FanDuel: %d events (%d uncovered), %d mapped markets",
+            len(events), len(uncovered_events), len(mapped),
+        )
+        return mapped
 
     def _fetch_draftkings(self, covered_games: set[str]) -> list[MappedMarket]:
         """Fetch and map DraftKings NBA markets for uncovered games only.

@@ -38,6 +38,7 @@ from src.reference import ReferencePrice
 from src.reference.betfair_client import BetfairClient
 from src.reference.composite_fetcher import CompositeReferenceFetcher
 from src.reference.draftkings_client import DraftKingsClient
+from src.reference.fanduel_client import FanDuelClient
 from src.reference.kalshi_client import KalshiClient
 from src.reference.market_mapper import MarketMapper
 from src.reference.odds_client import OddsClient, OddsClientError, parse_event_to_external_odds
@@ -47,7 +48,7 @@ from src.reference.price_adapter import PriceAdapter
 logger = logging.getLogger(__name__)
 
 POLYMARKET_HOST = "https://clob.polymarket.com"
-PREFERRED_BOOKMAKERS = ["betfair", "kalshi", "betfair_ex_eu", "pinnacle", "draftkings"]
+PREFERRED_BOOKMAKERS = ["fanduel", "betfair", "kalshi", "betfair_ex_eu", "pinnacle", "draftkings"]
 
 # Heartbeat interval for the CLOB API (seconds).  Polymarket auto-cancels
 # all orders if no heartbeat is received within 10s (with 5s buffer).
@@ -310,11 +311,13 @@ def build_reference_fetch_fn(
     kalshi_client = KalshiClient()
     betfair_client = BetfairClient()
     draftkings_client = DraftKingsClient()
+    fanduel_client = FanDuelClient()
 
     composite = CompositeReferenceFetcher(
         poly_contracts=poly_contracts,
         mapper=mapper,
         adapter=adapter,
+        fanduel_client=fanduel_client,
         draftkings_client=draftkings_client,
         kalshi_client=kalshi_client,
         betfair_client=betfair_client,
