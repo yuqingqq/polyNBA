@@ -7,10 +7,13 @@ format for seamless integration with the composite reference fetcher.
 DraftKings is considered the sharpest US book for NBA and provides
 odds with 1-5s latency, making it the highest-priority source.
 
-The endpoint may return HTTP 403 behind Akamai CDN when accessed
-from certain IPs or without a browser-like User-Agent. All errors
-degrade gracefully to an empty list, letting the bot fall through
-to Betfair/Kalshi/Odds API.
+The endpoint is protected by Akamai CDN which fingerprints TLS
+handshakes. We use curl_cffi (which impersonates a real browser's
+TLS stack) to bypass this. Falls back to plain requests if curl_cffi
+is not installed, though this will likely get 403 from non-residential IPs.
+
+All errors degrade gracefully to an empty list, letting the bot fall
+through to Betfair/Kalshi/Odds API.
 """
 
 import logging
@@ -20,6 +23,12 @@ from datetime import datetime, timezone
 from typing import Any, Optional
 
 import requests
+
+try:
+    from curl_cffi.requests import Session as CffiSession
+    _HAS_CFFI = True
+except ImportError:
+    _HAS_CFFI = False
 
 from .market_mapper import normalize_team_name
 from .odds_models import (
@@ -39,11 +48,8 @@ _NBA_EVENTGROUP_URL = (
 # "Away at Home" pattern for determining home/away
 _AT_PATTERN = re.compile(r"^(.+?)\s+at\s+(.+?)$", re.IGNORECASE)
 
-# Browser-like User-Agent to avoid Akamai blocks
-_USER_AGENT = (
-    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
-)
+# Browser impersonation target for curl_cffi
+_IMPERSONATE = "chrome131"
 
 
 class DraftKingsClient:
@@ -58,20 +64,37 @@ class DraftKingsClient:
 
     def __init__(self, timeout: int = 10) -> None:
         self.timeout = timeout
-        self.session = requests.Session()
-        self.session.headers.update({
-            "Accept": "application/json",
-            "User-Agent": _USER_AGENT,
-        })
 
-        # Configure proxy if provided (residential proxy needed for datacenter IPs)
+        # Configure proxy if provided
         proxy_url = os.environ.get("DRAFTKINGS_PROXY_URL", "")
+        proxies = None
         if proxy_url:
-            self.session.proxies = {
-                "https": proxy_url,
-                "http": proxy_url,
-            }
+            proxies = {"https": proxy_url, "http": proxy_url}
             logger.info("DraftKings using proxy: %s", proxy_url.split("@")[-1])
+
+        # Use curl_cffi to impersonate browser TLS fingerprint (bypasses Akamai).
+        # Fall back to plain requests if curl_cffi is not installed.
+        self._use_cffi = _HAS_CFFI
+        if _HAS_CFFI:
+            self.session = CffiSession(impersonate=_IMPERSONATE)
+            if proxies:
+                self.session.proxies = proxies
+            logger.info("DraftKings using curl_cffi (impersonate=%s)", _IMPERSONATE)
+        else:
+            self.session = requests.Session()
+            self.session.headers.update({
+                "Accept": "application/json",
+                "User-Agent": (
+                    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+                    "(KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36"
+                ),
+            })
+            if proxies:
+                self.session.proxies = proxies
+            logger.warning(
+                "curl_cffi not installed — DraftKings will likely get 403. "
+                "Install with: pip install curl_cffi"
+            )
 
     def get_nba_game_events(self) -> list[OddsApiEvent]:
         """Fetch NBA moneyline odds and convert to OddsApiEvent format.
@@ -80,13 +103,10 @@ class DraftKingsClient:
             List of OddsApiEvent, one per NBA game with moneyline odds.
             Returns empty list on any error (HTTP, parse, etc.).
         """
+        url = f"{_NBA_EVENTGROUP_URL}?format=json"
         try:
-            response = self.session.get(
-                _NBA_EVENTGROUP_URL,
-                params={"format": "json"},
-                timeout=self.timeout,
-            )
-        except requests.RequestException:
+            response = self.session.get(url, timeout=self.timeout)
+        except Exception:
             logger.warning("DraftKings HTTP request failed", exc_info=True)
             return []
 

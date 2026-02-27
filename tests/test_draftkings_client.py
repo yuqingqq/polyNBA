@@ -9,7 +9,7 @@ import pytest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-from src.reference.draftkings_client import DraftKingsClient, _USER_AGENT
+from src.reference.draftkings_client import DraftKingsClient
 
 
 # -------------------------------------------------------------------
@@ -128,13 +128,14 @@ class TestInit:
         client = DraftKingsClient(timeout=5)
         assert client.timeout == 5
 
-    def test_user_agent_header_set(self) -> None:
+    def test_prefers_curl_cffi(self) -> None:
+        """Should use curl_cffi when available."""
         client = DraftKingsClient()
-        assert client.session.headers.get("User-Agent") == _USER_AGENT
-
-    def test_accept_header_set(self) -> None:
-        client = DraftKingsClient()
-        assert client.session.headers.get("Accept") == "application/json"
+        try:
+            from curl_cffi.requests import Session as CffiSession
+            assert client._use_cffi is True
+        except ImportError:
+            assert client._use_cffi is False
 
     @patch.dict("os.environ", {"DRAFTKINGS_PROXY_URL": "http://user:pass@proxy.example.com:8080"})
     def test_proxy_configured_from_env(self) -> None:
